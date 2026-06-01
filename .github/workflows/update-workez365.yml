@@ -1,0 +1,37 @@
+name: noddan APK 링크 자동 업데이트
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: APK 다운로드 URL 추출
+        id: get_url
+        run: |
+          APK_URL=$(curl -s "${{ github.event.release.assets_url }}" \
+            | jq -r '.[] | select(.name | endswith(".apk")) | .browser_download_url' \
+            | head -1)
+          echo "apk_url=$APK_URL" >> $GITHUB_OUTPUT
+
+      - name: workez365 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: joahani3/workez365
+          token: ${{ secrets.WORKEZ365_TOKEN }}
+
+      - name: APK 링크 업데이트
+        run: |
+          APK_URL="${{ steps.get_url.outputs.apk_url }}"
+          sed -i -E "s|https://github\.com/joahani3/noddan-app/releases/download/[^\"]+|$APK_URL|g" \
+            noddan/index.html index.html
+
+      - name: 커밋 및 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add noddan/index.html index.html
+          git diff --staged --quiet || git commit -m "chore: noddan APK 링크 업데이트 (${{ github.event.release.tag_name }})"
+          git push
